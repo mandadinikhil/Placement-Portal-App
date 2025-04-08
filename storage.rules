@@ -1,0 +1,40 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() &&
+        firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
+    }
+
+    // Allow read access to all authenticated users
+    match /{allPaths=**} {
+      allow read: if isAuthenticated();
+    }
+
+    // Profile Images
+    match /profile_images/{userId}/{allImages=**} {
+      allow write: if isAuthenticated() && 
+        (request.auth.uid == userId || isAdmin()) &&
+        request.resource.size < 5 * 1024 * 1024 && // 5MB
+        request.resource.contentType.matches('image/.*');
+    }
+
+    // CV Documents
+    match /cvs/{userId}/{allDocs=**} {
+      allow write: if isAuthenticated() && 
+        (request.auth.uid == userId || isAdmin()) &&
+        request.resource.size < 10 * 1024 * 1024 && // 10MB
+        request.resource.contentType.matches('application/pdf');
+    }
+
+    // Admin can access all files
+    match /{allPaths=**} {
+      allow write: if isAdmin();
+    }
+  }
+} 
